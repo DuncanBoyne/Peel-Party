@@ -21,7 +21,8 @@ export default function ProductActions({ product, maxOrderQty = 1000 }: ProductA
     Object.fromEntries(product.options.map((o) => [o.name, o.values[0]]))
   );
   const [customText, setCustomText] = useState("");
-  const [slotState, setSlotState] = useState<Record<string, { file: File | null; url: string | null; uploading: boolean }>>({});
+  const [slotState, setSlotState] = useState<Record<string, { file: File; url: string | null; uploading: boolean }[]>>({});
+  const [designSplit, setDesignSplit] = useState("");
   const [slotResetKey, setSlotResetKey] = useState(0);
   const [quantity, setQuantity] = useState<number | null>(null);
   const [added, setAdded] = useState(false);
@@ -48,22 +49,33 @@ export default function ProductActions({ product, maxOrderQty = 1000 }: ProductA
     return [{ key: "artwork", label: "Artwork" }];
   }, [product.supportsFileUpload, selectedOptions]);
 
-  async function handleFileSelect(key: string, file: File | null) {
-    setSlotState((prev) => ({ ...prev, [key]: { file, url: null, uploading: !!file } }));
-    if (!file) return;
+  // FileUpload hands us the full list each time: keep finished uploads, upload only new files
+  function handleFilesChange(key: string, files: File[]) {
+    const known = slotState[key] ?? [];
+    setSlotState((prev) => ({
+      ...prev,
+      [key]: files.map((file) => (prev[key] ?? []).find((u) => u.file === file) ?? { file, url: null, uploading: true }),
+    }));
+    files.filter((f) => !known.some((u) => u.file === f)).forEach((f) => uploadFile(key, f));
+  }
+
+  async function uploadFile(key: string, file: File) {
+    let url: string | null = null;
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/artwork-upload", { method: "POST", body: fd });
       const data = await res.json();
-      const url = res.ok && data.url ? (data.url as string) : null;
-      setSlotState((prev) => ({ ...prev, [key]: { file, url, uploading: false } }));
-    } catch {
-      setSlotState((prev) => ({ ...prev, [key]: { file, url: null, uploading: false } }));
-    }
+      url = res.ok && data.url ? (data.url as string) : null;
+    } catch { /* url stays null — shown as failed */ }
+    setSlotState((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).map((u) => (u.file === file ? { ...u, url, uploading: false } : u)),
+    }));
   }
 
-  const anyUploading = Object.values(slotState).some((s) => s.uploading);
+  const anyUploading = Object.values(slotState).some((list) => list.some((u) => u.uploading));
+  const designCount = (slotState["artwork"] ?? []).length;
 
   const selectedSizeVariant = useMemo(() => {
     if (!product.sizeVariants?.length) return null;
@@ -184,29 +196,35 @@ export default function ProductActions({ product, maxOrderQty = 1000 }: ProductA
   }
 
   function handleAddToCart() {
-    const artworks: ArtworkFile[] = uploadSlots
-      .flatMap((slot) => {
-        const url = slotState[slot.key]?.url;
-        return url ? [{ placement: slot.label, url }] : [];
-      });
+    // Numbered to match the list the customer saw, so "30 of design 1" lines up for the admin
+    const artworks: ArtworkFile[] = uploadSlots.flatMap((slot) => {
+      const list = slotState[slot.key] ?? [];
+      return list.flatMap((u, i) => u.url
+        ? [{ placement: list.length > 1 ? `Design ${i + 1} (${u.file.name})` : slot.label, url: u.url }]
+        : []);
+    });
     const artworksArg = artworks.length ? artworks : undefined;
+    // Rides in selectedOptions so cart, checkout, admin orders and order emails all show it untouched
+    const options = designCount > 1
+      ? { ...selectedOptions, "Design split": designSplit.trim() || "Split evenly" }
+      : selectedOptions;
     if (isCustomQty) {
       if (pricedOptionUnitPrice !== null) {
         if (!optionQtyIsValid) return;
-        addItem(product, selectedOptions, optionQty, customText || undefined, artworksArg, unitPrice * optionQty * (1 - volumeDiscountPct / 100));
+        addItem(product, options, optionQty, customText || undefined, artworksArg, unitPrice * optionQty * (1 - volumeDiscountPct / 100));
         setAdded(true);
         setTimeout(() => setAdded(false), 2000);
         return;
       }
       if (!customQtyData || customQtyData.overMax) return;
-      addItem(product, selectedOptions, customQtyData.pricedQty, customText || undefined, artworksArg, customQtyData.totalPence / 100);
+      addItem(product, options, customQtyData.pricedQty, customText || undefined, artworksArg, customQtyData.totalPence / 100);
     } else {
       const linePrice = pricedOptionUnitPrice !== null
         ? unitPrice * optionQty * (1 - volumeDiscountPct / 100)
         : currentTier
           ? currentTier.totalPence / 100
           : unitPrice * effectiveQty * (1 - volumeDiscountPct / 100);
-      addItem(product, selectedOptions, effectiveQty, customText || undefined, artworksArg, linePrice);
+      addItem(product, options, effectiveQty, customText || undefined, artworksArg, linePrice);
     }
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -326,16 +344,47 @@ export default function ProductActions({ product, maxOrderQty = 1000 }: ProductA
       {uploadSlots.length > 0 && (
         <div className="flex flex-col gap-4">
           {uploadSlots.map((slot) => {
-            const s = slotState[slot.key] ?? { file: null, url: null, uploading: false };
+            const list = slotState[slot.key] ?? [];
+            const done = list.filter((u) => !u.uploading && u.url);
+            const failed = list.filter((u) => !u.uploading && !u.url);
+            // Front/Back placements take one file each; the general artwork slot takes several designs
+            const multiple = slot.key === "artwork";
             return (
               <div key={`${slotResetKey}-${slot.key}`}>
                 <FileUpload
-                  onFile={(f) => handleFileSelect(slot.key, f)}
-                  label={uploadSlots.length > 1 ? `${slot.label} Artwork` : "Upload Artwork (optional)"}
+                  multiple={multiple}
+                  onFiles={(files) => handleFilesChange(slot.key, files)}
+                  label={uploadSlots.length > 1 ? `${slot.label} Artwork` : multiple ? "Upload Your Designs (optional)" : "Upload Artwork (optional)"}
                 />
-                {s.uploading && <p className="text-xs text-[#6b7280] mt-1">Uploading…</p>}
-                {s.file && !s.uploading && s.url && <p className="text-xs text-emerald-600 mt-1">{slot.label} artwork uploaded ✓</p>}
-                {s.file && !s.uploading && !s.url && <p className="text-xs text-amber-600 mt-1">Upload failed — you can still add to cart</p>}
+                {list.some((u) => u.uploading) && <p className="text-xs text-[#6b7280] mt-1">Uploading…</p>}
+                {done.length > 0 && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    {done.length > 1 ? `${done.length} designs uploaded` : `${slot.label} artwork uploaded`} ✓
+                  </p>
+                )}
+                {failed.length > 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Upload failed for {failed.map((u) => u.file.name).join(", ")}. Remove and try again, or you can still add to cart
+                  </p>
+                )}
+                {multiple && designCount > 1 && (
+                  <div className="mt-4">
+                    <label htmlFor="design-split" className="block text-sm font-semibold text-[#111111] mb-2">
+                      How should we split your order between these {designCount} designs?{" "}
+                      <span className="text-[#6b7280] font-normal">(optional)</span>
+                    </label>
+                    <textarea
+                      id="design-split"
+                      value={designSplit}
+                      onChange={(e) => setDesignSplit(e.target.value)}
+                      rows={3}
+                      maxLength={500}
+                      placeholder="e.g. 30 of design 1, 20 of design 2"
+                      className="w-full px-4 py-3 rounded-xl border-2 border-[#e5e1d8] text-sm text-[#111111] placeholder:text-[#6b7280] resize-none focus:outline-none focus:border-[#ef8733] transition-colors"
+                    />
+                    <p className="text-xs text-[#6b7280] mt-1">Leave blank and we&apos;ll split them evenly.</p>
+                  </div>
+                )}
               </div>
             );
           })}

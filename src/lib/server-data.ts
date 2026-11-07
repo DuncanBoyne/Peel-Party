@@ -108,8 +108,9 @@ export interface Quote {
   deadline: string;
   customText: string;
   notes: string;
-  artworkFileName: string;
-  artworkUrl?: string;
+  artworks?: { name: string; url: string }[]; // url "" = upload failed
+  artworkFileName?: string; // legacy single-file quotes
+  artworkUrl?: string;      // legacy single-file quotes
   submittedAt: string;
   status: "new" | "in-progress" | "responded" | "closed";
 }
@@ -142,6 +143,7 @@ export interface SiteSettings {
   metaTitle: string;
   metaDescription: string;
   shopNavSections: ShopNavSection[];
+  seasons: string[]; // header "Seasonal" dropdown; a season shows once a product is tagged with it
 }
 
 const defaultSettings: SiteSettings = {
@@ -163,6 +165,7 @@ const defaultSettings: SiteSettings = {
   metaTitle: "Peel & Party Co. | Custom Stickers, Gifts & Party Decor",
   metaDescription: "Personalised stickers, gifts and party decor made in the UK.",
   shopNavSections: defaultShopNavSections,
+  seasons: ["Christmas", "Easter", "Halloween", "Harvest"],
 };
 
 export async function getSettings(): Promise<SiteSettings> {

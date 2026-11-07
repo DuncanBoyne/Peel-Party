@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { getCostSettings } from "@/lib/server-data";
+import { getCostSettings, getSettings } from "@/lib/server-data";
 import ProductForm from "../ProductForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
-  const costSettings = await getCostSettings();
+  const [costSettings, settings] = await Promise.all([getCostSettings(), getSettings()]);
   return (
     <div>
       <Link href="/admin/products" className="inline-flex items-center gap-2 text-sm text-[#6b7280] hover:text-[#111111] transition-colors mb-6">
@@ -26,6 +26,7 @@ export default async function NewProductPage() {
         maxOrderQty={costSettings.maxOrderQty}
         materials={costSettings.materials}
         defaultProfitPercent={costSettings.targetProfitPercent}
+        seasons={settings.seasons}
       />
     </div>
   );

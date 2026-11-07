@@ -19,6 +19,7 @@ interface Props {
   maxOrderQty?: number;
   materials?: MaterialType[];
   defaultProfitPercent?: number;
+  seasons?: string[];
 }
 
 const emptyProduct: Partial<Product> = {
@@ -73,6 +74,7 @@ export default function ProductForm({
   maxOrderQty = 1000,
   materials = [],
   defaultProfitPercent = 40,
+  seasons = [],
 }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<Partial<Product>>(product ?? emptyProduct);
@@ -402,6 +404,16 @@ export default function ProductForm({
           <div>
             <label className={labelClass}>Badge <span className="text-[#6b7280] font-normal">(optional)</span></label>
             <input className={inputClass} value={form.badge ?? ""} onChange={(e) => update("badge", e.target.value)} placeholder="e.g. Best Seller, Sale, New" />
+          </div>
+          <div>
+            <label className={labelClass}>Season <span className="text-[#6b7280] font-normal">(optional — add seasons in Settings)</span></label>
+            {/* "" not undefined: the PUT merges, so a dropped key would leave the old season in place */}
+            <select className={inputClass} value={form.season ?? ""} onChange={(e) => update("season", e.target.value)}>
+              <option value="">Not seasonal</option>
+              {[...new Set([...seasons, form.season ?? ""])].filter(Boolean).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>Short Description *</label>

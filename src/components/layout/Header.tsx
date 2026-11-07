@@ -20,8 +20,12 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopNavSections, setShopNavSections] = useState<ShopNavSection[]>(defaultShopNavSections);
+  const [seasons, setSeasons] = useState<string[]>([]);
+  const [seasonOpen, setSeasonOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const shopRef = useRef<HTMLDivElement>(null);
+  const seasonRef = useRef<HTMLDivElement>(null);
+  const seasonLinks = seasons.map((s) => ({ id: s, label: s, href: `/shop?season=${encodeURIComponent(s)}` }));
 
   useEffect(() => {
     function onScroll() { setScrolled(window.scrollY > 10); }
@@ -36,10 +40,10 @@ export default function Header() {
       try {
         const res = await fetch("/api/shop-nav");
         if (!res.ok) return;
-        const data = (await res.json()) as { sections?: ShopNavSection[] };
-        if (!cancelled && data.sections?.length) {
-          setShopNavSections(data.sections);
-        }
+        const data = (await res.json()) as { sections?: ShopNavSection[]; seasons?: string[] };
+        if (cancelled) return;
+        if (data.sections?.length) setShopNavSections(data.sections);
+        setSeasons(data.seasons ?? []);
       } catch {
         // Keep the built-in menu if settings cannot be loaded.
       }
@@ -54,6 +58,9 @@ export default function Header() {
     function onClickOutside(e: MouseEvent) {
       if (shopRef.current && !shopRef.current.contains(e.target as Node)) {
         setShopOpen(false);
+      }
+      if (seasonRef.current && !seasonRef.current.contains(e.target as Node)) {
+        setSeasonOpen(false);
       }
     }
     document.addEventListener("mousedown", onClickOutside);
@@ -113,6 +120,33 @@ export default function Header() {
                 </div>
               )}
             </div>
+
+            {/* Seasonal dropdown — seasons are managed in Admin → Settings */}
+            {seasonLinks.length > 0 && (
+              <div ref={seasonRef} className="relative">
+                <button
+                  onClick={() => setSeasonOpen((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer",
+                    seasonOpen ? "bg-[#f0ede8] text-[#ef8733]" : "text-[#111111] hover:bg-[#f0ede8] hover:text-[#ef8733]"
+                  )}
+                >
+                  Seasonal
+                  <ChevronDown size={14} className={cn("transition-transform duration-200", seasonOpen && "rotate-180")} />
+                </button>
+
+                {seasonOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-xl border border-[#e5e1d8] shadow-lg py-1 z-50">
+                    {seasonLinks.map((link) => (
+                      <Link key={link.id} href={link.href} onClick={() => setSeasonOpen(false)}
+                        className="block px-4 py-1.5 text-sm text-[#111111] hover:bg-[#f0ede8] hover:text-[#ef8733] transition-colors">
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {topNav.map((item) => (
               <Link
@@ -177,7 +211,7 @@ export default function Header() {
                 className="px-3 py-2.5 text-sm font-medium rounded-lg text-[#111111] hover:bg-[#f0ede8] transition-colors block">
                 All Products
               </Link>
-              {shopNavSections.map((section) => (
+              {[...shopNavSections, ...(seasonLinks.length ? [{ id: "seasonal", title: "Seasonal", links: seasonLinks }] : [])].map((section) => (
                 <div key={section.id}>
                   <p className="px-3 pt-3 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-[#9ca3af]">
                     {section.title}

@@ -11,7 +11,7 @@ const quantities = ["1–24", "25–49", "50–99", "100–249", "250–499", "5
 export default function CustomOrderPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  const [artworkFiles, setArtworkFiles] = useState<File[]>([]);
 
   const [form, setForm] = useState({
     name: "",
@@ -33,25 +33,25 @@ export default function CustomOrderPage() {
     e.preventDefault();
     setLoading(true);
 
-    let artworkUrl = "";
-    let artworkFileName = "";
-    if (artworkFile) {
-      artworkFileName = artworkFile.name;
-      const fd = new FormData();
-      fd.append("file", artworkFile);
-      try {
-        const res = await fetch("/api/artwork-upload", { method: "POST", body: fd });
-        const data = await res.json();
-        if (data.url) artworkUrl = data.url;
-      } catch {
-        // file upload failed — proceed without artwork URL
-      }
-    }
+    // A failed upload keeps its name with an empty url, so admin sees "(not uploaded)" and can ask for it
+    const artworks = await Promise.all(
+      artworkFiles.map(async (file) => {
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/artwork-upload", { method: "POST", body: fd });
+          const data = await res.json();
+          return { name: file.name, url: (data.url as string | undefined) ?? "" };
+        } catch {
+          return { name: file.name, url: "" };
+        }
+      })
+    );
 
     await fetch("/api/admin/quotes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, artworkFileName, artworkUrl }),
+      body: JSON.stringify({ ...form, artworks }),
     });
     setLoading(false);
     setSubmitted(true);
@@ -167,12 +167,12 @@ export default function CustomOrderPage() {
           <div className="mt-4">
             <label className="block text-sm font-semibold text-[#111111] mb-1.5">Additional Notes</label>
             <textarea value={form.notes} onChange={(e) => update("notes", e.target.value)} rows={4}
-              placeholder="Tell us about sizes, finishes, special requirements, brand guidelines…"
+              placeholder="Tell us about sizes, finishes, special requirements, brand guidelines… Sending several designs? Say how to split the quantity between them."
               className="w-full px-4 py-3 rounded-xl border-2 border-[#e5e1d8] text-sm resize-none focus:outline-none focus:border-[#ef8733] transition-colors" />
           </div>
 
           <div className="mt-4">
-            <FileUpload onFile={setArtworkFile} label="Upload Your Artwork (optional)" />
+            <FileUpload multiple onFiles={setArtworkFiles} label="Upload Your Artwork (optional)" />
           </div>
         </fieldset>
 

@@ -52,6 +52,7 @@ export interface Product {
   supportsFileUpload: boolean;
   orderType: OrderType;
   badge?: string;
+  season?: string; // one of SiteSettings.seasons, "" = not seasonal
   featured?: boolean;
   inStock: boolean;
   reviewCount: number;

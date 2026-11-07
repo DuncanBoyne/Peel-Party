@@ -135,10 +135,13 @@ export default function SettingsForm({ initialSettings }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    // Textarea keeps raw lines while typing; tidy them only on save
+    const seasons = [...new Set(form.seasons.map((s) => s.trim()).filter(Boolean))];
+    setForm((prev) => ({ ...prev, seasons }));
     await fetch("/api/admin/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, seasons }),
     });
     setLoading(false);
     setSaved(true);
@@ -316,6 +319,21 @@ export default function SettingsForm({ initialSettings }: Props) {
             <Plus size={16} /> Add Section
           </button>
         </div>
+      </Section>
+
+      <Section title="Seasonal Dropdown">
+        <Field label="Seasons (one per line)" full>
+          <textarea
+            rows={5}
+            className="w-full px-3 py-2.5 rounded-xl border-2 border-[#e5e1d8] text-sm focus:outline-none focus:border-[#ef8733] transition-colors resize-none bg-white"
+            value={form.seasons.join("\n")}
+            onChange={(e) => update("seasons", e.target.value.split("\n"))}
+            placeholder={"Christmas\nEaster\nHalloween\nHarvest"}
+          />
+          <p className="text-xs text-[#6b7280] mt-1.5">
+            Tag products with a season on the product edit page. A season only shows in the site&apos;s Seasonal menu once at least one product is tagged with it.
+          </p>
+        </Field>
       </Section>
 
       <Section title="Custom Order Section">

@@ -138,8 +138,10 @@ export default function CartDrawer() {
                     {item.customText && (
                       <p className="text-xs text-[#6b7280] truncate">Text: &ldquo;{item.customText}&rdquo;</p>
                     )}
-                    {item.artworkUrl && (
-                      <p className="text-xs text-[#ef8733]">Artwork attached ✓</p>
+                    {(item.artworks?.length || item.artworkUrl) && (
+                      <p className="text-xs text-[#ef8733]">
+                        {(item.artworks?.length ?? 0) > 1 ? `${item.artworks!.length} designs attached` : "Artwork attached"} ✓
+                      </p>
                     )}
 
                     <div className="flex items-center justify-between mt-2">

@@ -133,7 +133,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback(
     (product: Product, options: Record<string, string>, qty = 1, text?: string, artworks?: ArtworkFile[], linePrice?: number) => {
-      const id = `${product.id}-${Object.values(options).join("-")}-${text ?? ""}`;
+      // Artwork is part of the line identity: merging two lines would keep only the first line's designs
+      const id = `${product.id}-${Object.values(options).join("-")}-${text ?? ""}-${(artworks ?? []).map((a) => a.url).join("|")}`;
       const resolvedLinePrice = linePrice ?? product.price * qty;
       dispatch({
         type: "ADD_ITEM",

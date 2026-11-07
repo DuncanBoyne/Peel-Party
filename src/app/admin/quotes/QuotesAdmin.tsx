@@ -118,15 +118,19 @@ export default function QuotesAdmin({ initialQuotes }: Props) {
                     ))}
                     <div>
                       <p className="text-xs text-[#6b7280] mb-0.5">Artwork</p>
-                      {q.artworkUrl ? (
-                        <a href={q.artworkUrl} target="_blank" rel="noopener noreferrer" className="text-[#ef8733] underline text-sm font-medium">
-                          {q.artworkFileName || "View file"}
-                        </a>
-                      ) : q.artworkFileName ? (
-                        <p className="text-[#111111] text-sm">{q.artworkFileName} <span className="text-[#9ca3af]">(not uploaded)</span></p>
-                      ) : (
-                        <p className="text-[#6b7280]">No file uploaded</p>
-                      )}
+                      {(() => {
+                        const files = q.artworks ?? (q.artworkFileName || q.artworkUrl
+                          ? [{ name: q.artworkFileName || "View file", url: q.artworkUrl ?? "" }]
+                          : []);
+                        if (!files.length) return <p className="text-[#6b7280]">No file uploaded</p>;
+                        return files.map((f, fi) => f.url ? (
+                          <a key={fi} href={f.url} target="_blank" rel="noopener noreferrer" className="block text-[#ef8733] underline text-sm font-medium">
+                            {f.name}
+                          </a>
+                        ) : (
+                          <p key={fi} className="text-[#111111] text-sm">{f.name} <span className="text-[#9ca3af]">(not uploaded)</span></p>
+                        ));
+                      })()}
                     </div>
                     {q.notes && (
                       <div className="sm:col-span-2">

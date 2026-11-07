@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { Resend } from "resend";
 import { getOrders, saveOrders, getSettings, getPendingStripeData, deletePendingStripeData } from "@/lib/server-data";
 import { Order, OrderItem } from "@/lib/types";
+import { orderItemDetailsHtml } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -44,10 +45,7 @@ function buildOwnerEmail(order: Order): string {
   const fmt = (p: number) => `£${(p / 100).toFixed(2)}`;
   const itemRows = order.items
     .map((i) => {
-      const options = i.selectedOptions
-        ? `<br><span style="color:#6b7280;font-size:12px">${Object.entries(i.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(" | ")}</span>`
-        : "";
-      return `<tr><td style="padding:6px 12px;border-bottom:1px solid #f0ede8">${i.name}${options}</td><td style="padding:6px 12px;border-bottom:1px solid #f0ede8;text-align:right">${fmt(i.unitAmountPence * i.quantity)}</td></tr>`;
+      return `<tr><td style="padding:6px 12px;border-bottom:1px solid #f0ede8">${i.name}${orderItemDetailsHtml(i)}</td><td style="padding:6px 12px;border-bottom:1px solid #f0ede8;text-align:right">${fmt(i.unitAmountPence * i.quantity)}</td></tr>`;
     })
     .join("");
   const { firstName, lastName, email, phone, address1, address2, city, postcode } = order.customer;
@@ -75,10 +73,7 @@ function buildCustomerEmail(order: Order): string {
   const fmt = (p: number) => `£${(p / 100).toFixed(2)}`;
   const itemRows = order.items
     .map((i) => {
-      const options = i.selectedOptions
-        ? `<br><span style="color:#6b7280;font-size:12px">${Object.entries(i.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(" | ")}</span>`
-        : "";
-      return `<tr><td style="padding:6px 12px;border-bottom:1px solid #f0ede8">${i.name}${options}</td><td style="padding:6px 12px;border-bottom:1px solid #f0ede8;text-align:right">${fmt(i.unitAmountPence * i.quantity)}</td></tr>`;
+      return `<tr><td style="padding:6px 12px;border-bottom:1px solid #f0ede8">${i.name}${orderItemDetailsHtml(i)}</td><td style="padding:6px 12px;border-bottom:1px solid #f0ede8;text-align:right">${fmt(i.unitAmountPence * i.quantity)}</td></tr>`;
     })
     .join("");
   return `
