@@ -27,6 +27,7 @@ export interface SizeVariant {
   widthCm: number;
   heightCm: number;
   stickersPerSheet: number;
+  perSheetOverride?: number; // typed by admin (e.g. what Cricut really fits); Sync Sizes keeps it
 }
 
 export type OrderType = "buy-now" | "request-quote";

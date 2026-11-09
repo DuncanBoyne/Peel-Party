@@ -193,14 +193,30 @@ export default function ProductForm({
     update("images", (form.images ?? []).filter((u) => u !== url));
   }
 
+  // Blank = back to the calculated count
+  function setPerSheetOverride(name: string, raw: string) {
+    const n = parseInt(raw, 10);
+    update("sizeVariants", (form.sizeVariants ?? []).map((v) => {
+      if (v.name !== name) return v;
+      return n > 0
+        ? { ...v, perSheetOverride: n, stickersPerSheet: n }
+        : { ...v, perSheetOverride: undefined, stickersPerSheet: calcPerSheet(v.widthCm, v.heightCm, sheetWidthCm, sheetHeightCm) };
+    }));
+  }
+
   function syncSizes() {
     const validSizes: SizeVariant[] = categorySizes
-      .map((s) => ({
-        name: s.name,
-        widthCm: s.widthCm ?? 0,
-        heightCm: s.heightCm ?? 0,
-        stickersPerSheet: calcPerSheet(s.widthCm ?? 0, s.heightCm ?? 0, sheetWidthCm, sheetHeightCm),
-      }))
+      .map((s) => {
+        // Manual per-sheet counts survive a re-sync; everything else is recalculated
+        const override = (form.sizeVariants ?? []).find((v) => v.name === s.name)?.perSheetOverride;
+        return {
+          name: s.name,
+          widthCm: s.widthCm ?? 0,
+          heightCm: s.heightCm ?? 0,
+          stickersPerSheet: override ?? calcPerSheet(s.widthCm ?? 0, s.heightCm ?? 0, sheetWidthCm, sheetHeightCm),
+          ...(override ? { perSheetOverride: override } : {}),
+        };
+      })
       .filter((s) => s.stickersPerSheet > 0 && s.name);
 
     const existingOptions = (form.options ?? []).filter((o) => o.name !== "Size");
@@ -545,7 +561,8 @@ export default function ProductForm({
           ) : (
             <div className="mt-4 flex flex-col gap-2">
               {categorySizes.map((s) => {
-                const synced = (form.sizeVariants ?? []).some((v) => v.name === s.name);
+                const variant = (form.sizeVariants ?? []).find((v) => v.name === s.name);
+                const synced = !!variant;
                 const perSh = calcPerSheet(s.widthCm ?? 0, s.heightCm ?? 0, sheetWidthCm, sheetHeightCm);
                 return (
                   <div key={s.id} className={`flex items-center justify-between px-4 py-2.5 rounded-xl border-2 ${synced ? "border-[#ef8733] bg-[#fff7ed]" : "border-[#e5e1d8]"}`}>
@@ -553,15 +570,31 @@ export default function ProductForm({
                       <span className={`text-sm font-semibold ${synced ? "text-[#ef8733]" : "text-[#111111]"}`}>{s.name || "Unnamed"}</span>
                       <span className="text-xs text-[#6b7280]">{s.widthCm}×{s.heightCm} cm · {((s.widthCm ?? 0) / CM_PER_INCH).toFixed(2)}″×{((s.heightCm ?? 0) / CM_PER_INCH).toFixed(2)}″</span>
                     </div>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${perSh > 0 ? "bg-[#f0fdf4] text-emerald-700" : "bg-red-50 text-red-500"}`}>
-                      {perSh > 0 ? `${perSh}/sheet` : "too large"}
-                    </span>
+                    {variant ? (
+                      <label className="flex items-center gap-2 text-xs text-[#6b7280]">
+                        {variant.perSheetOverride && <span>auto {perSh} ·</span>}
+                        <input
+                          type="number"
+                          min={1}
+                          value={variant.perSheetOverride ?? ""}
+                          placeholder={String(variant.stickersPerSheet)}
+                          onChange={(e) => setPerSheetOverride(variant.name, e.target.value)}
+                          className="w-16 h-8 px-2 rounded-lg border-2 border-[#e5e1d8] bg-white text-sm text-[#111111] focus:outline-none focus:border-[#ef8733]"
+                          aria-label={`${variant.name} stickers per sheet`}
+                        />
+                        /sheet
+                      </label>
+                    ) : (
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${perSh > 0 ? "bg-[#f0fdf4] text-emerald-700" : "bg-red-50 text-red-500"}`}>
+                        {perSh > 0 ? `${perSh}/sheet` : "too large"}
+                      </span>
+                    )}
                   </div>
                 );
               })}
               {(form.sizeVariants ?? []).length > 0 && (
                 <p className="text-xs text-[#6b7280] mt-1">
-                  ✓ {form.sizeVariants!.length} size{form.sizeVariants!.length !== 1 ? "s" : ""} synced to this product. Quantities will step in multiples of each size&apos;s stickers/sheet.
+                  ✓ {form.sizeVariants!.length} size{form.sizeVariants!.length !== 1 ? "s" : ""} synced to this product. Quantities will step in multiples of each size&apos;s stickers/sheet. If Cricut fits a different number, type it in the box. Sync Sizes keeps typed numbers; clear the box to go back to the calculated one.
                 </p>
               )}
             </div>
